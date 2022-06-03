@@ -1,11 +1,11 @@
-{% autoescape off%}
+{% autoescape off %}
 
-Hi{{user.Username}}
+Hi{{user.username}}
 
 Please use the link below to verify your acccount.
 
 
-http://{{domain}}{% url 'activate' uidb64=uid token=token %}
+http://{{domain}}{% url 'activate' uidb64=uid token=token  %}
 
 
  {% endautoescape %}

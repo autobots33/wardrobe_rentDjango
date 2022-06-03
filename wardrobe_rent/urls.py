@@ -17,15 +17,16 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import include, path
+from dj_rest_auth.registration.views import VerifyEmailView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('accounts/', include('accounts.urls')),
-    path('accounts/',include('django.contrib.auth.urls')),
-    path('accounts/', include('allauth.urls')),
+    path('', include('accounts.urls')),
+    path('',include('django.contrib.auth.urls')),
+    path('', include('allauth.urls')),
     #path('about/',views.about),
     #path('about/',views.homepage),
-    # path('account-confirm-email/', VerifyEmailView.as_view(), name='account_email_verification_sent'),
+    #path('account-confirm-email/', VerifyEmailView.as_view(), name='account_email_verification_sent'),
 ]
 
 admin.site.site_header = "Wardrobe_Rent Administration"

@@ -11,20 +11,40 @@ from .utils import generate_token
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
-
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
-
+#from decorators import auth_user_should_not_access
 import threading
 
 
 class EmailThread(threading.Thread):
 
-    def __init__(self, email_message):
-        self.email_message = email_message
+    def __init__(self, email):
+        self.email = email
         threading.Thread.__init__(self)
 
     def run(self):
-        self.email_message.send()
+        self.email.send()
+
+def send_activation_email(user,request):
+    current_site = get_current_site(request)
+    email_subject = 'Active your Account'
+    email_body = render_to_string('authentication/activate.html',
+          {
+            'user': user,
+            'domain': current_site.domain,
+            'uid': urlsafe_base64_encode(force_bytes(user.pk)),
+            'token': generate_token.make_token(user)
+                                   }
+                                   )
+        
+    email=EmailMessage(
+    subject=email_subject,
+            body=email_body,
+            from_emali=settings.EMAIL_FROM_USER,
+            to=[user.emali]
+           
+    )    
+    EmailThread(email).start()   
 
 
 class RegistrationView(View):
@@ -45,11 +65,11 @@ class RegistrationView(View):
         password2 = request.POST.get('password2')
         if len(password) < 6:
             messages.add_message(request, messages.ERROR,
-                                 'passwords should be atleast 6 characters long')
+                                 'Passwords should be atleast 6 characters long')
             context['has_error'] = True
         if password != password2:
             messages.add_message(request, messages.ERROR,
-                                 'passwords dont match')
+                                 "Passwords does not match")
             context['has_error'] = True
 
         if not validate_email(email):
@@ -62,7 +82,7 @@ class RegistrationView(View):
                 messages.add_message(request, messages.ERROR, 'Email is taken')
                 context['has_error'] = True
 
-        except Exception as identifier:
+        except Exception as e:
             pass
 
         try:
@@ -71,11 +91,11 @@ class RegistrationView(View):
                     request, messages.ERROR, 'Username is taken')
                 context['has_error'] = True
 
-        except Exception as identifier:
+        except Exception as e:
             pass
 
         if context['has_error']:
-            return render(request, 'authentication/register.html', context, status=400)
+            return render(request, 'authentication/register.html', context)
 
         user = User.objects.create_user(username=username, email=email)
         user.set_password(password)
@@ -84,29 +104,13 @@ class RegistrationView(View):
         user.is_active = False
         user.save()
         
-        current_site = get_current_site(request)
-        email_subject = 'Active your Account'
-        message = render_to_string('authentication/activate.html',
-                                   {
-                                       'user': user,
-                                       'domain': current_site.domain,
-                                       'uid': urlsafe_base64_encode(force_bytes(user.pk)),
-                                       'token': generate_token.make_token(user)
-                                   }
-                                   )
-        
-        email_message = EmailMessage(
-            email_subject,
-            message,
-            settings.EMAIL_HOST_USER,
-            [email]
-        )
+        send_activation_email(user, request)
        
-        EmailThread(email_message).start()
         messages.add_message(request, messages.SUCCESS,
-                             'Account created succesfully')
+                             'We have sent you link to verify your account')
 
         return redirect('login')
+    
 
 
 class LoginView(View):
@@ -131,29 +135,31 @@ class LoginView(View):
         user = authenticate(request, username=username, password=password)
 
         if not user and not context['has_error']:
-            messages.add_message(request, messages.ERROR, 'Wrong Credentials')
+            messages.add_message(request, messages.ERROR, 'Invalid Credentials')
             context['has_error'] = True
 
         if context['has_error']:
             return render(request, 'authentication/login.html', status=401, context=context)
         login(request, user)
+        messages.add_message(request, messages.SUCCESS,
+                                 f'Welcome {user.username}')
         return redirect('home')
 
 
-class ActivateAccountView(View):
+class activate_user(View):
     def get(self, request, uidb64, token):
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(pk=uid)
-        except Exception as identifier:
+        except Exception as e:
             user = None
-        if user is not None and generate_token.check_token(user, token):
-            user.is_active = True
+        if user and generate_token.check_token(user, token):
+            user.is_email_verified = True
             user.save()
             messages.add_message(request, messages.SUCCESS,
-                                 'account activated successfully')
+                                 'Email verified successfully, you can now login ')
             return redirect('login')
-        return render(request, 'authentication/activate_failed.html', status=401)
+        return render(request, 'authentication/activate-failed.html', {'user':user})
 
 
 class HomeView(View):
@@ -223,7 +229,7 @@ class SetNewPasswordView(View):
                     request, 'Password reset link, is invalid, please request a new one')
                 return render(request, 'auth/request-reset-email.html')
 
-        except DjangoUnicodeDecodeError as identifier:
+        except DjangoUnicodeDecodeError as e:
             messages.success(
                 request, 'Invalid link')
             return render(request, 'authentication/request-reset-email.html')
@@ -267,4 +273,4 @@ class SetNewPasswordView(View):
             messages.error(request, 'Something went wrong')
             return render(request, 'authentication/set-new-password.html', context)
 
-        return render(request, 'authentication/set-new-password.html', context)
+       
